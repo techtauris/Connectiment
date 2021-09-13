@@ -17,9 +17,8 @@ fs.readFile('data.json', 'utf8' , (err, data) => {
     console.error(err)
     return
   }
-  console.log(data)
 	list = JSON.parse(data).messages;
-	console.log(list)
+	users = JSON.parse(data).users;
 })
 
 //start of server side socket.io
@@ -31,19 +30,24 @@ io.on('connection', (socket) => {
 
 	//on disconnect we find the user and remove their socket from the data
   socket.on('disconnect', (data) => {
-    console.log(socket.id);
+		var leaver;
 		for(var i = 0; i < users.length; i++){
 			if(users[i].socket == socket.id){
 				users[i].socket =null;
+				leaver = users[i]
 			}
 		}
+		io.emit('chat message', {"message": leaver.leavemsg +" &gt","user": leaver.user});
+		list.push({"message": leaver.leavemsg +" &gt","user": leaver.user});
+		saveusers(users);
+		savemessages(list);
   });
 
 	//on message we broadcast it to users and save it to our list
   socket.on('chat message', (msg) => {
 		list.push(msg);
     io.emit('chat message', msg);
-		console.log(list);
+		savemessages(list);
   });
 
 	//fullconnect is emited once the user is ready to give a full user data
@@ -51,11 +55,15 @@ io.on('connection', (socket) => {
 		if(getuser(msg.user) != null){
 			getuser(msg.user).socket = socket.id;
 		}else{
-		users.push({"user":msg.user,"socket": socket.id,"joinmsg":"is online"});
+		users.push({"user":msg.user,"socket": socket.id,"joinmsg":"is online", "leavemsg":"is offline"});
+		}
+		for(var i = 0; i<list.length; i++){
+			socket.emit('chat message', list[i]);
 		}
 		io.emit('chat message', {"message": getuser(msg.user).joinmsg +" &gt","user": msg.user});
 		list.push( {"message": getuser(msg.user).joinmsg +" &gt","user": msg.user});
 		console.log(users);
+		saveusers(users);
 	});
 
 	//commands are processed seperatly from messages to make it easier to implement new commands
@@ -107,4 +115,39 @@ function getuserindex(name){
 		}
 	}
 	return null;
+}
+
+//function to save data for users and messages
+function saveusers(userlist){
+	var savedata;
+	try {
+  const data = fs.readFileSync('data.json', 'utf8')
+		savedata = JSON.parse(data);
+	} catch (err) {
+		console.error(err);
+	}
+	savedata.users = userlist;
+	fs.writeFile('data.json', JSON.stringify(savedata), err => {
+		if (err) {
+			console.error(err)
+			return
+		}
+	})
+}
+
+function savemessages(list){
+	var savedata;
+	try {
+  const data = fs.readFileSync('data.json', 'utf8')
+		savedata = JSON.parse(data);
+	} catch (err) {
+		console.error(err);
+	}
+	savedata.messages = list;
+	fs.writeFile('data.json', JSON.stringify(savedata), err => {
+		if (err) {
+			console.error(err)
+			return
+		}
+	})
 }
