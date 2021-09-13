@@ -7,10 +7,11 @@ const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server);
 
-
+//these arrays are used to hold the user info and messages
 var list = [];
 var users = [];
 
+//reading the files
 fs.readFile('data.json', 'utf8' , (err, data) => {
   if (err) {
     console.error(err)
@@ -21,11 +22,14 @@ fs.readFile('data.json', 'utf8' , (err, data) => {
 	console.log(list)
 })
 
+//start of server side socket.io
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
 
 io.on('connection', (socket) => {
+
+	//on disconnect we find the user and remove their socket from the data
   socket.on('disconnect', (data) => {
     console.log(socket.id);
 		for(var i = 0; i < users.length; i++){
@@ -34,11 +38,15 @@ io.on('connection', (socket) => {
 			}
 		}
   });
+
+	//on message we broadcast it to users and save it to our list
   socket.on('chat message', (msg) => {
 		list.push(msg);
     io.emit('chat message', msg);
 		console.log(list);
   });
+
+	//fullconnect is emited once the user is ready to give a full user data
 	socket.on('fullconnect', (msg) => {
 		if(getuser(msg.user) != null){
 			getuser(msg.user).socket = socket.id;
@@ -49,6 +57,9 @@ io.on('connection', (socket) => {
 		list.push( {"message": getuser(msg.user).joinmsg +" &gt","user": msg.user});
 		console.log(users);
 	});
+
+	//commands are processed seperatly from messages to make it easier to implement new commands
+	//msg.args is a list containing every word after the /command
 	socket.on('command', (msg) => {
 		console.log(msg);
 		switch(msg.type){
@@ -79,6 +90,7 @@ server.listen(3000, () => {
   console.log('listening');
 });
 
+//extra functions to find users
 function getuser(name){
 	for(var i = 0; i < users.length; i++){
 		if(users[i].user == name){
